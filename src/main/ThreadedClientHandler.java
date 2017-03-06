@@ -49,7 +49,6 @@ public class ThreadedClientHandler implements Runnable {
                     String line = in.nextLine();
                     System.out.println("Processing line: " + line);
 
-                    //String answer = null;
                     String[] fields = StringUtils.splitByWholeSeparatorPreserveAllTokens(line, separator);
 
                     String inMessage = fields[0];
@@ -61,10 +60,12 @@ public class ThreadedClientHandler implements Runnable {
                                 out.println(InvalidArgsNumberReason);
                                 break;
                             }
-                            if(fields[1].equals("1"))
+                            if(fields[1].equals("1")) {
                                 out.println(MessageType.POTWIERDZENIE.toString());
-                            else
+                            } else {
                                 out.println(MessageType.ODRZUCENIE.toString());
+                                done = true;
+                            }
                             break;
 
                         case REJESTRACJA:
@@ -120,11 +121,14 @@ public class ThreadedClientHandler implements Runnable {
                             int i = 1;
                             for (User user: usersData) {
                                 if(login.equals(user.getLogin()) && password.equals(user.getPassword())) {
+                                    user.setAuthorized(true);
                                     user.setStatus(StatusType.DOSTEPNY);
                                     user.setStreamOut(out);
                                     this.clientLogin = user.getLogin();
-
                                     out.println(MessageType.POTWIERDZENIE.toString());
+
+                                    updateUsers();
+                                    //updateConversations();
 
                                     StringBuilder convList = new StringBuilder();
                                     convList.append(MessageType.LISTA_KONWERSACJI.toString())
@@ -135,14 +139,14 @@ public class ThreadedClientHandler implements Runnable {
                                     }
                                     out.println(convList.toString());
 
-                                    StringBuilder usersList = new StringBuilder();
+                                    /*StringBuilder usersList = new StringBuilder();
                                     usersList.append(MessageType.LISTA_UZYTKOWNIKOW.toString())
                                             .append(";")
                                             .append(usersData.size());
                                     for (User user1 : usersData) {
                                         usersList.append(";").append(user1.getLogin()).append(";").append(user1.getStatus().toString());
                                     }
-                                    out.println(usersList.toString());
+                                    out.println(usersList.toString());*/
                                     break;
                                 } else {
                                     if (i == usersData.size()) {
@@ -181,16 +185,14 @@ public class ThreadedClientHandler implements Runnable {
                                 }
                             }
                             for(User user : usersData) {
-                                if (!user.getLogin().equals(clientLogin)) {
-                                    PrintWriter tmpOut = user.getStreamOut();
-                                    StringBuilder statusChange = new StringBuilder();
-                                    statusChange.append(MessageType.ZMIANA_STATUSU)
-                                            .append(";")
-                                            .append(clientLogin)
-                                            .append(";")
-                                            .append(status.toString());
-                                    tmpOut.println(statusChange.toString());
-                                }
+                                PrintWriter tmpOut = user.getStreamOut();
+                                StringBuilder statusChange = new StringBuilder();
+                                statusChange.append(MessageType.ZMIANA_STATUSU)
+                                        .append(";")
+                                        .append(clientLogin)
+                                        .append(";")
+                                        .append(status.toString());
+                                tmpOut.println(statusChange.toString());
                             }
                             break;
 
@@ -237,6 +239,7 @@ public class ThreadedClientHandler implements Runnable {
                                 newConversation.getUsersInConversation().add(clientLogin);
                                 conversations.add(newConversation);
                                 out.println(MessageType.POTWIERDZENIE);
+                                updateConversations();
                                 break;
                             }
 
@@ -266,6 +269,7 @@ public class ThreadedClientHandler implements Runnable {
                                 newConversation.getUsersInConversation().add(clientLogin);
                                 conversations.add(newConversation);
                                 out.println(MessageType.POTWIERDZENIE);
+                                updateConversations();
                             }
                             break;
 
@@ -296,6 +300,7 @@ public class ThreadedClientHandler implements Runnable {
                                     }
                                     if(conversation.getUsersInConversation().size() == 0) {
                                         it.remove();
+                                        updateConversations();
                                     }
                                 }
                             }
@@ -307,7 +312,6 @@ public class ThreadedClientHandler implements Runnable {
                                 out.println(NoUserInConversationReason);
                                 break;
                             }
-
                             break;
 
                         case BYWAJ:
@@ -316,8 +320,12 @@ public class ThreadedClientHandler implements Runnable {
                                 for(User user : usersData) {
                                     if (user.getLogin().equals(clientLogin)) {
                                         user.setStatus(StatusType.NIEDOSTEPNY);
+                                        user.setAuthorized(false);
                                     }
                                 }
+                                updateUsers();
+                            } else {
+                                out.println(NoUsersReason);
                             }
                             break;
 
@@ -336,6 +344,36 @@ public class ThreadedClientHandler implements Runnable {
         catch (IOException e)
         {
             e.printStackTrace();
+        }
+    }
+
+    public void updateUsers() {
+        StringBuilder usersList = new StringBuilder();
+        usersList.append(MessageType.LISTA_UZYTKOWNIKOW.toString())
+                .append(";");
+        int authorizedUsersNumber = 0;
+        for (User user : usersData) {
+            if(user.isAuthorized()) {
+                authorizedUsersNumber++;
+                usersList.append(";").append(user.getLogin()).append(";").append(user.getStatus().toString());
+            }
+        }
+        usersList.insert(19,authorizedUsersNumber);
+        for (User user : usersData) {
+            user.getStreamOut().println(usersList.toString());
+        }
+    }
+
+    public void updateConversations() {
+        StringBuilder convList = new StringBuilder();
+        convList.append(MessageType.LISTA_KONWERSACJI.toString())
+                .append(";")
+                .append(conversations.size());
+        for (Conversation conversation : conversations) {
+            convList.append(";").append(conversation.getName());
+        }
+        for (User user : usersData) {
+            user.getStreamOut().println(convList.toString());
         }
     }
 }

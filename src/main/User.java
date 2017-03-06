@@ -13,6 +13,7 @@ public class User {
     private String password;
     private StatusType status;
     private PrintWriter streamOut;
+    private boolean isAuthorized;
 
     public String getLogin() {
         return login;
@@ -34,11 +35,18 @@ public class User {
     }
     public PrintWriter getStreamOut() { return streamOut; }
     public void setStreamOut(PrintWriter streamOut) { this.streamOut = streamOut; }
+    public boolean isAuthorized() {
+        return isAuthorized;
+    }
+    public void setAuthorized(boolean authorized) {
+        isAuthorized = authorized;
+    }
 
     public User(String login, String password, PrintWriter stream) {
         this.login = login;
         this.password = password;
         this.status = StatusType.NIEDOSTEPNY;
         this.streamOut = stream;
+        this.isAuthorized = false;
     }
 }
