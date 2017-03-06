@@ -280,9 +280,9 @@ public class ThreadedClientHandler implements Runnable {
                             }
                             boolean noUserInConversation = true;
                             boolean noConversation = true;
-                            boolean deleteConversation = false;
-                            int id = 0;
-                            for(Conversation conversation : conversations) {
+                            Iterator<Conversation> it = conversations.iterator();
+                            while (it.hasNext()) {
+                                Conversation conversation = it.next();
                                 if(conversation.getName().equals(discussionName)) {
                                     noConversation = false;
                                     for(String user : conversation.getUsersInConversation()) {
@@ -295,15 +295,10 @@ public class ThreadedClientHandler implements Runnable {
                                         out.println(MessageType.POTWIERDZENIE);
                                     }
                                     if(conversation.getUsersInConversation().size() == 0) {
-                                        deleteConversation = true;
+                                        it.remove();
                                     }
                                 }
                             }
-                            if(deleteConversation) {
-                                conversations.remove(id);
-                                //TODO
-                            }
-
                             if(noConversation) {
                                 out.println(InvalidConversationReason);
                                 break;
