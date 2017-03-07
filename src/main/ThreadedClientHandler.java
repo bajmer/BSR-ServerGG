@@ -26,12 +26,15 @@ public class ThreadedClientHandler implements Runnable {
     private final String NoUsersReason = MessageType.ERROR.toString() + ";Brak uzytkownikow w bazie";
     private final String UserIsNotLoggedInReason = MessageType.ERROR.toString() + ";Uzytkownik nie jest zalogowany";
     private final String UserAlreadyLoggedInReason = MessageType.ERROR.toString() + ";Uzytkownik jest juz zalogowany. Zaloguj sie na inne konto.";
+    private final String InvalidReveiverReason = MessageType.ERROR.toString() + ";Nieznany adresat wiadomosci";
+    private final String InvalidSenderReason = MessageType.ERROR.toString() + ";Nieznany nadawca wiadomosci";
     private final String InvalidStatusReason = MessageType.ERROR.toString() + ";Nieprawidłowy status";
     private final String NoConversationsReason = MessageType.ERROR.toString() + ";Brak konwersacji";
     private final String InvalidConversationReason = MessageType.ERROR.toString() + ";Nie ma takiej konwersacji";
     private final String AleradyInConversationReason = MessageType.ERROR.toString() + ";Uzytkownik jest juz w konwersacji";
     private final String NoUserInConversationReason = MessageType.ERROR.toString() + ";Brak uzytkownika w konwersacji";
-    private final String Rejected = MessageType.ODRZUCENIE.toString();
+    private final String Confirmation = MessageType.POTWIERDZENIE.toString();
+    private final String Rejection = MessageType.ODRZUCENIE.toString();
 
     private static ArrayList<User> usersData = new ArrayList<>();
     private static ArrayList<Conversation> conversations = new ArrayList<>();
@@ -70,17 +73,17 @@ public class ThreadedClientHandler implements Runnable {
                                 break;
                             }
                             if (fields[1].equals("1")) {
-                                out.println(MessageType.POTWIERDZENIE.toString());
+                                out.println(Confirmation);
                                 Handshake = true;
                             } else {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                             }
                             break;
                         //**********************************************************************************************
                         case REJESTRACJA:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -122,13 +125,13 @@ public class ThreadedClientHandler implements Runnable {
                                     usersData.add(newUser);
                                 }
                             }
-                            out.println(MessageType.ODP_REJESTRACJA.toString() + ";" + responseType.toString());
+                            out.println(MessageType.ODP_REJESTRACJA.toString() + separator + responseType.toString());
 
                             break;
                         //**********************************************************************************************
                         case AUTORYZCJA:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -154,17 +157,17 @@ public class ThreadedClientHandler implements Runnable {
                                         user.setStatus(StatusType.DOSTEPNY);
                                         user.setStreamOut(out);
                                         this.clientLogin = user.getLogin();
-                                        out.println(MessageType.POTWIERDZENIE.toString());
+                                        out.println(Confirmation);
 
                                         updateUsers();
                                         //updateConversations();
 
                                         StringBuilder convList = new StringBuilder();
                                         convList.append(MessageType.LISTA_KONWERSACJI.toString())
-                                                .append(";")
+                                                .append(separator)
                                                 .append(conversations.size());
                                         for (Conversation conversation : conversations) {
-                                            convList.append(";").append(conversation.getName());
+                                            convList.append(separator).append(conversation.getName());
                                         }
                                         out.println(convList.toString());
                                         break;
@@ -180,7 +183,7 @@ public class ThreadedClientHandler implements Runnable {
                         //**********************************************************************************************
                         case WIADOMOSC:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -192,11 +195,70 @@ public class ThreadedClientHandler implements Runnable {
                                 out.println(InvalidArgsNumberReason);
                                 break;
                             }
+                            String chatName = fields[2];
+                            String message = fields[3];
+                            if(StringUtils.isBlank(chatName)) {
+                                String receiver = fields[1];
+                                boolean needConfirmation = false;
+                                for (User user : usersData) {
+                                    if(user.getLogin().equals(receiver)) {
+                                        StringBuilder messageAnswer = new StringBuilder(MessageType.WIADOMOSC.toString());
+                                        messageAnswer.append(separator)
+                                                .append(clientLogin)
+                                                .append(separator)
+                                                .append(separator)
+                                                .append(message);
+                                        user.getStreamOut().println(messageAnswer);
+                                        needConfirmation = true;
+                                        break;
+                                    }
+                                }
+                                if(needConfirmation) {
+                                    out.println(Confirmation);
+                                } else {
+                                    out.println(InvalidReveiverReason);
+                                }
+                            } else {
+                                String sender = fields[1];
+                                if(!sender.equals(clientLogin)) {
+                                    out.println(InvalidSenderReason);
+                                    break;
+                                }
+                                StringBuilder messageAnswer = new StringBuilder(MessageType.WIADOMOSC.toString());
+                                messageAnswer.append(separator)
+                                        .append(sender)
+                                        .append(separator)
+                                        .append(chatName)
+                                        .append(separator)
+                                        .append(message);
+                                boolean needConfirmation = false;
+                                boolean invalidChatName = true;
+                                for (Conversation conversation : conversations) {
+                                    if(conversation.getName().equals(chatName)) {
+                                        invalidChatName = false;
+                                        for(String userInConversation : conversation.getUsersInConversation()) {
+                                            for(User user : usersData) {
+                                                if(userInConversation.equals(user.getLogin())) {
+                                                    user.getStreamOut().println(messageAnswer);
+                                                    needConfirmation = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if(invalidChatName) {
+                                    out.println(InvalidConversationReason);
+                                }
+                                if(needConfirmation) {
+                                    out.println(Confirmation);
+                                }
+                            }
                             break;
                         //**********************************************************************************************
                         case USTAW_STATUS:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -220,16 +282,16 @@ public class ThreadedClientHandler implements Runnable {
                             for (User user : usersData) {
                                 if (user.getLogin().equals(clientLogin)) {
                                     user.setStatus(status);
-                                    out.println(MessageType.POTWIERDZENIE);
+                                    out.println(Confirmation);
                                 }
                             }
                             for (User user : usersData) {
                                 PrintWriter tmpOut = user.getStreamOut();
                                 StringBuilder statusChange = new StringBuilder();
                                 statusChange.append(MessageType.ZMIANA_STATUSU)
-                                        .append(";")
+                                        .append(separator)
                                         .append(clientLogin)
-                                        .append(";")
+                                        .append(separator)
                                         .append(status.toString());
                                 tmpOut.println(statusChange.toString());
                             }
@@ -237,7 +299,7 @@ public class ThreadedClientHandler implements Runnable {
                         //**********************************************************************************************
                         case KTO_W_KONWERSACJI:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -260,10 +322,10 @@ public class ThreadedClientHandler implements Runnable {
                                 if (conversation.getName().equals(conversationName)) {
                                     StringBuilder conversationAnswer = new StringBuilder();
                                     conversationAnswer.append(MessageType.LISTA_W_KONWERSACJI)
-                                            .append(";")
+                                            .append(separator)
                                             .append(conversation.getUsersInConversation().size());
                                     for (String userInConversation : conversation.getUsersInConversation()) {
-                                        conversationAnswer.append(";").append(userInConversation);
+                                        conversationAnswer.append(separator).append(userInConversation);
                                     }
                                     out.println(conversationAnswer.toString());
                                     break;
@@ -278,7 +340,7 @@ public class ThreadedClientHandler implements Runnable {
                         //**********************************************************************************************
                         case DOLACZ:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -295,7 +357,7 @@ public class ThreadedClientHandler implements Runnable {
                                 Conversation newConversation = new Conversation(discussion);
                                 newConversation.getUsersInConversation().add(clientLogin);
                                 conversations.add(newConversation);
-                                out.println(MessageType.POTWIERDZENIE);
+                                out.println(Confirmation);
                                 updateConversations();
                                 break;
                             }
@@ -311,8 +373,9 @@ public class ThreadedClientHandler implements Runnable {
                                     }
                                     if (!alreadyInConversation) {
                                         conversation.getUsersInConversation().add(clientLogin);
-                                        out.println(MessageType.POTWIERDZENIE);
+                                        out.println(Confirmation);
                                         createConversation = false;
+                                        updateConversations();
                                         break;
                                     } else {
                                         out.println(AleradyInConversationReason);
@@ -325,14 +388,14 @@ public class ThreadedClientHandler implements Runnable {
                                 Conversation newConversation = new Conversation(discussion);
                                 newConversation.getUsersInConversation().add(clientLogin);
                                 conversations.add(newConversation);
-                                out.println(MessageType.POTWIERDZENIE);
+                                out.println(Confirmation);
                                 updateConversations();
                             }
                             break;
                         //**********************************************************************************************
                         case ZREZYGNUJ:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -362,7 +425,7 @@ public class ThreadedClientHandler implements Runnable {
                                     }
                                     if (!noUserInConversation) {
                                         conversation.getUsersInConversation().remove(clientLogin);
-                                        out.println(MessageType.POTWIERDZENIE);
+                                        out.println(Confirmation);
                                     }
                                     if (conversation.getUsersInConversation().size() == 0) {
                                         it.remove();
@@ -382,7 +445,7 @@ public class ThreadedClientHandler implements Runnable {
                         //**********************************************************************************************
                         case BYWAJ:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -394,7 +457,24 @@ public class ThreadedClientHandler implements Runnable {
                                         user.setAuthorized(false);
                                     }
                                 }
+                                boolean noUserInConv = true;
+                                Iterator<Conversation> itConv = conversations.iterator();
+                                while (itConv.hasNext()) {
+                                    Conversation conversation = itConv.next();
+                                    for (String user : conversation.getUsersInConversation()) {
+                                        if (user.equals(clientLogin)) {
+                                            noUserInConv = false;
+                                        }
+                                    }
+                                    if (!noUserInConv) {
+                                        conversation.getUsersInConversation().remove(clientLogin);
+                                    }
+                                    if (conversation.getUsersInConversation().size() == 0) {
+                                        itConv.remove();
+                                    }
+                                }
                                 updateUsers();
+                                updateConversations();
                             } else {
                                 out.println(NoUsersReason);
                             }
@@ -402,7 +482,7 @@ public class ThreadedClientHandler implements Runnable {
                         //**********************************************************************************************
                         default:
                             if(!Handshake) {
-                                out.println(Rejected);
+                                out.println(Rejection);
                                 done = true;
                                 break;
                             }
@@ -423,12 +503,12 @@ public class ThreadedClientHandler implements Runnable {
     public void updateUsers() {
         StringBuilder usersList = new StringBuilder();
         usersList.append(MessageType.LISTA_UZYTKOWNIKOW.toString())
-                .append(";");
+                .append(separator);
         int authorizedUsersNumber = 0;
         for (User user : usersData) {
             if (user.isAuthorized()) {
                 authorizedUsersNumber++;
-                usersList.append(";").append(user.getLogin()).append(";").append(user.getStatus().toString());
+                usersList.append(separator).append(user.getLogin()).append(separator).append(user.getStatus().toString());
             }
         }
         usersList.insert(19, authorizedUsersNumber);
@@ -440,10 +520,10 @@ public class ThreadedClientHandler implements Runnable {
     public void updateConversations() {
         StringBuilder convList = new StringBuilder();
         convList.append(MessageType.LISTA_KONWERSACJI.toString())
-                .append(";")
+                .append(separator)
                 .append(conversations.size());
         for (Conversation conversation : conversations) {
-            convList.append(";").append(conversation.getName());
+            convList.append(separator).append(conversation.getName());
         }
         for (User user : usersData) {
             user.getStreamOut().println(convList.toString());
