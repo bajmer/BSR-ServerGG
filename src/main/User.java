@@ -5,7 +5,7 @@ import enums.StatusType;
 import java.io.PrintWriter;
 
 /**
- * Created by mbala on 27.02.17.
+ * @author Marcin Bala
  */
 public class User {
 

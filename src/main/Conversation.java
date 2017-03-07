@@ -3,12 +3,12 @@ package main;
 import java.util.ArrayList;
 
 /**
- * Created by mbala on 28.02.17.
+ * @author Marcin Bala
  */
 public class Conversation {
 
     private String name;
-    private ArrayList<String> usersInConversation = new ArrayList<>();
+    private ArrayList<String> usersInConversation;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -21,5 +21,6 @@ public class Conversation {
 
     public Conversation(String name) {
         this.name = name;
+        this.usersInConversation = new ArrayList<>();
     }
 }
