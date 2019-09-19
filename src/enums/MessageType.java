@@ -42,4 +42,5 @@ public enum MessageType {
         }
         return MessageType.NIEZNANY;
     }
+    
 }
